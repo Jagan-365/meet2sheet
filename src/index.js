@@ -6,13 +6,16 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 const app = express();
+app.use(express.json());
+
+app.use(express.urlencoded({ extended: true }));
 
 // Replace with your details
-const CLIENT_ID = `${ process.env.ZOHO_CLIENT_ID }`;
-const CLIENT_SECRET = `${ process.env.ZOHO_CLIENT_SECRET }`;
-const REDIRECT_URI = `${ process.env.ZOHO_REDIRECT_URI }`;
-const ZOHO_DOMAIN = `${ process.env.ZOHO_DOMAIN }`;
-const PEOPLE_API = `${ process.env.PEOPLE_API }`;
+const CLIENT_ID = `${process.env.ZOHO_CLIENT_ID}`;
+const CLIENT_SECRET = `${process.env.ZOHO_CLIENT_SECRET}`;
+const REDIRECT_URI = `${process.env.ZOHO_REDIRECT_URI}`;
+const ZOHO_DOMAIN = `${process.env.ZOHO_DOMAIN}`;
+const PEOPLE_API = `${process.env.PEOPLE_API}`;
 
 let accessToken = "";
 let refreshToken = "";
@@ -20,7 +23,7 @@ let refreshToken = "";
 // Step 1: Redirect user to Zoho OAuth
 app.get("/auth", (req, res) => {
   // const authUrl = `${ZOHO_DOMAIN}/oauth/v2/auth?scope=ZohoPeople.timesheets.READ,ZohoPeople.timesheets.WRITE&client_id=${CLIENT_ID}&response_type=code&access_type=offline&redirect_uri=${REDIRECT_URI}`;
-  const authUrl = `${ZOHO_DOMAIN}/oauth/v2/auth?scope=ZohoPeople.timecards.READ,ZohoPeople.timecards.CREATE&client_id=${CLIENT_ID}&response_type=code&access_type=offline&redirect_uri=${REDIRECT_URI}`;
+  const authUrl = `${ZOHO_DOMAIN}/oauth/v2/auth?scope=ZohoPeople.timetracker.ALL&client_id=${CLIENT_ID}&response_type=code&access_type=offline&redirect_uri=${REDIRECT_URI}`;
 
   res.redirect(authUrl);
 });
@@ -50,17 +53,78 @@ app.get("/auth/callback", async (req, res) => {
 
 // Step 3: Call Zoho People Timesheet API
 app.get("/timesheets", async (req, res) => {
+
   if (!accessToken) return res.send("⚠️ Please authenticate via /auth first");
+
+  const { user, from, to } = req.query; // pass via query params
 
   try {
     const result = await axios.get(
       `${PEOPLE_API}/timetracker/gettimesheet`,
-      { headers: { Authorization: `Zoho-oauthtoken ${accessToken}` } }
+      {
+        params: { user, from, to },
+        headers: { Authorization: `Zoho-oauthtoken ${accessToken}` }
+      }
     );
     res.json(result.data);
   } catch (err) {
     res.status(500).send(err.response?.data || err.message);
   }
 });
+
+
+
+app.post("/add-timelog", async (req, res) => {
+  if (!accessToken) return res.send("⚠️ Authenticate via /auth first");
+
+  const { workDate, hours, billingStatus, jobId, user } = req.body;
+
+  try {
+    const result = await axios.post(
+      `${PEOPLE_API}/timetracker/addtimelog`,
+      qs.stringify({
+        workDate,       // YYYY-MM-DD
+        hours,          // HH:mm
+        billingStatus,  // "Billable" or "Non Billable"
+        jobId,          // Job ID from Zoho
+        user            // Email or userId
+      }),
+      {
+        headers: {
+          Authorization: `Zoho-oauthtoken ${accessToken}`,
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      }
+    );
+
+    res.json(result.data);
+  } catch (err) {
+    console.error("❌ Error adding timelog:", err.response?.data || err.message);
+    res.status(500).send(err.response?.data || err.message);
+  }
+});
+
+// 📌 Get all jobs in Zoho People
+app.get("/jobs", async (req, res) => {
+  if (!accessToken) return res.send("⚠️ Authenticate via /auth first");
+
+  try {
+    const result = await axios.get(
+      `${PEOPLE_API}/timetracker/getjobs`,
+      {
+        headers: {
+          Authorization: `Zoho-oauthtoken ${accessToken}`
+        }
+      }
+    );
+
+    res.json(result.data);
+  } catch (err) {
+    console.error("❌ Error fetching jobs:", err.response?.data || err.message);
+    res.status(500).send(err.response?.data || err.message);
+  }
+});
+
+
 
 app.listen(process.env.PORT, () => console.log(`🚀 Server running on http://localhost:${process.env.PORT}`));
