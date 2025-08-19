@@ -1,130 +1,20 @@
-const express = require("express");
-const axios = require("axios");
-const qs = require("qs");
-const dotenv = require('dotenv');
+import express from"express";
+import routes from "./routes/index.js";
+import dotenv from "dotenv";
 
 dotenv.config();
 
 const app = express();
-app.use(express.json());
+const port = process.env.PORT || 3003;
+app.use(express.json()); // parses JSON body
+app.use(express.urlencoded({ extended: true })); // for form-urlencoded payloads
 
-app.use(express.urlencoded({ extended: true }));
+app.use('/api', routes);
 
-// Replace with your details
-const CLIENT_ID = `${process.env.ZOHO_CLIENT_ID}`;
-const CLIENT_SECRET = `${process.env.ZOHO_CLIENT_SECRET}`;
-const REDIRECT_URI = `${process.env.ZOHO_REDIRECT_URI}`;
-const ZOHO_DOMAIN = `${process.env.ZOHO_DOMAIN}`;
-const PEOPLE_API = `${process.env.PEOPLE_API}`;
-
-let accessToken = "";
-let refreshToken = "";
-
-// Step 1: Redirect user to Zoho OAuth
-app.get("/auth", (req, res) => {
-  // const authUrl = `${ZOHO_DOMAIN}/oauth/v2/auth?scope=ZohoPeople.timesheets.READ,ZohoPeople.timesheets.WRITE&client_id=${CLIENT_ID}&response_type=code&access_type=offline&redirect_uri=${REDIRECT_URI}`;
-  const authUrl = `${ZOHO_DOMAIN}/oauth/v2/auth?scope=ZohoPeople.timetracker.ALL&client_id=${CLIENT_ID}&response_type=code&access_type=offline&redirect_uri=${REDIRECT_URI}`;
-
-  res.redirect(authUrl);
-});
-
-// Step 2: Handle OAuth Callback
-app.get("/auth/callback", async (req, res) => {
-  const code = req.query.code;
+app.listen(port, async () => {
   try {
-    const tokenRes = await axios.post(
-      `${ZOHO_DOMAIN}/oauth/v2/token`,
-      qs.stringify({
-        grant_type: "authorization_code",
-        client_id: CLIENT_ID,
-        client_secret: CLIENT_SECRET,
-        redirect_uri: REDIRECT_URI,
-        code
-      }),
-      { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
-    );
-    accessToken = tokenRes.data.access_token;
-    refreshToken = tokenRes.data.refresh_token;
-    res.send("✅ Authentication successful! You can now call /timesheets");
-  } catch (err) {
-    res.status(500).send(err.response?.data || err.message);
+    console.log(`Server is running on http://localhost:${port}`);
+  } catch (error) {
+    console.log('Unable to connect to the server:', error);
   }
 });
-
-// Step 3: Call Zoho People Timesheet API
-app.get("/timesheets", async (req, res) => {
-
-  if (!accessToken) return res.send("⚠️ Please authenticate via /auth first");
-
-  const { user, from, to } = req.query; // pass via query params
-
-  try {
-    const result = await axios.get(
-      `${PEOPLE_API}/timetracker/gettimesheet`,
-      {
-        params: { user, from, to },
-        headers: { Authorization: `Zoho-oauthtoken ${accessToken}` }
-      }
-    );
-    res.json(result.data);
-  } catch (err) {
-    res.status(500).send(err.response?.data || err.message);
-  }
-});
-
-
-
-app.post("/add-timelog", async (req, res) => {
-  if (!accessToken) return res.send("⚠️ Authenticate via /auth first");
-
-  const { workDate, hours, billingStatus, jobId, user } = req.body;
-
-  try {
-    const result = await axios.post(
-      `${PEOPLE_API}/timetracker/addtimelog`,
-      qs.stringify({
-        workDate,       // YYYY-MM-DD
-        hours,          // HH:mm
-        billingStatus,  // "Billable" or "Non Billable"
-        jobId,          // Job ID from Zoho
-        user            // Email or userId
-      }),
-      {
-        headers: {
-          Authorization: `Zoho-oauthtoken ${accessToken}`,
-          "Content-Type": "application/x-www-form-urlencoded"
-        }
-      }
-    );
-
-    res.json(result.data);
-  } catch (err) {
-    console.error("❌ Error adding timelog:", err.response?.data || err.message);
-    res.status(500).send(err.response?.data || err.message);
-  }
-});
-
-// 📌 Get all jobs in Zoho People
-app.get("/jobs", async (req, res) => {
-  if (!accessToken) return res.send("⚠️ Authenticate via /auth first");
-
-  try {
-    const result = await axios.get(
-      `${PEOPLE_API}/timetracker/getjobs`,
-      {
-        headers: {
-          Authorization: `Zoho-oauthtoken ${accessToken}`
-        }
-      }
-    );
-
-    res.json(result.data);
-  } catch (err) {
-    console.error("❌ Error fetching jobs:", err.response?.data || err.message);
-    res.status(500).send(err.response?.data || err.message);
-  }
-});
-
-
-
-app.listen(process.env.PORT, () => console.log(`🚀 Server running on http://localhost:${process.env.PORT}`));
