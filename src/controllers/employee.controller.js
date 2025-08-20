@@ -14,14 +14,47 @@ export async function getEmployee(req, res) {
       `${PEOPLE_API}/forms/P_EmployeeView/records?searchColumn=EMPLOYEEMAILALIAS&searchValue=${email}`,
       { headers: { Authorization: `Zoho-oauthtoken ${accessToken}` } }
     );
+    const job = await axios.get(
+        `${PEOPLE_API}/timetracker/getjobs?assignedTo=${email}`,
+        { headers: { Authorization: `Zoho-oauthtoken ${accessToken}` } }
+    );
+    const empData = result.data?.[0];
+
+    if (!empData) {
+      return res.status(404).send({ success: false, message: "Employee not found" });
+    }
+
+    const employee = {
+      firstName: empData["First Name"] || "",
+      lastName: empData["Last Name"] || "",
+      email: empData["Email address"] || "",
+      employeeId: empData["Employee ID"] || "",
+      userId: empData["recordId"] || "",
+      status: empData["Employee Status"] || "",
+      designation: empData["Designation"] || null,
+      department: empData["Department"] || null,
+      photo: empData["Photo_downloadUrl"] || null,
+    };
+
+    const jobs =
+      job.data?.response?.result?.map(j => ({
+        projectName: j.projectName,
+        jobName: j.jobName,
+        jobId: j.jobId,
+        jobStatus: j.jobStatus,
+        clientName: j.clientName,
+        clientId: j.clientId,
+      })) || [];
+
     res.send({
       success: true,
-      data: result.data
+      data: employee,
+      jobs,
     });
   } catch (err) {
     res.status(500).send(err.response?.data || err.message);
   }
-};
+}
 
 export async function getJobs(req, res) {
   const accessToken = req.accessToken || "";

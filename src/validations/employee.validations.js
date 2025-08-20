@@ -30,13 +30,13 @@ export const createTimeLogSchema = {
 
     workDate: dateSchema.required(),
 
-  hours: Joi.string()
-  .pattern(/^([01]\d|2[0-3]):([0-5]\d)$/)
-  .required()
-  .messages({
+    hours: Joi.string()
+    .pattern(/^([01]\d|2[0-3]):([0-5]\d)$/)
+    .required()
+    .messages({
     "string.pattern.base": "Hours must be in format HH:mm (00:00 to 23:59)",
     "string.empty": "Hours is required"
-  }),
+   }),
 
     billingStatus: Joi.string()
       .valid("Billable", "Non-billable")
@@ -75,7 +75,8 @@ export const createTimeSheetSchema = {
 
 export const updateTimeSheetSchema = {
     body: Joi.object({
-        timesheetId: Joi.string().required()
+        timesheetId: Joi.string().required(),
+        sendforApproval: Joi.boolean().required()
     })
 };
 
