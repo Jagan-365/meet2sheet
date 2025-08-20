@@ -14,8 +14,8 @@ let accessToken = "";
 let refreshToken = "";
 
 export async function authenticate(req, res) {
-  const scopes = ["ZOHOPEOPLE.timetracker.ALL", "ZOHOPEOPLE.forms.ALL", "ZOHOPEOPLE.employee.ALL"].join(",");
-  const authUrl = `${ZOHO_DOMAIN}/oauth/v2/auth?scope=${scopes}&client_id=${CLIENT_ID}&response_type=code&access_type=offline&redirect_uri=${REDIRECT_URI}`;
+  const scopes = ["ZohoPeople.timetracker.ALL", "ZohoPeople.forms.ALL", "ZohoPeople.employee.ALL"].join(",");
+  const authUrl = `${ZOHO_DOMAIN}/oauth/v2/auth?scope=${scopes}&client_id=${CLIENT_ID}&response_type=code&access_type=offline&redirect_uri=${REDIRECT_URI}&prompt=consent`;
   res.redirect(authUrl);
 };
 
@@ -47,3 +47,33 @@ export async function oauthCallback(req, res) {
     res.status(500).send(err.response?.data || err.message);
   }
 };
+
+export async function refreshAccessToken() {
+  if (!refreshToken) {
+    throw new Error("No refresh token available. Please re-authenticate.");
+  }
+
+  try {
+    const refreshRes = await axios.post(
+      `${ZOHO_DOMAIN}/oauth/v2/token`,
+      qs.stringify({
+        grant_type: "refresh_token",
+        client_id: CLIENT_ID,
+        client_secret: CLIENT_SECRET,
+        refresh_token: refreshToken
+      }),
+      { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+    );
+
+    accessToken = refreshRes.data.access_token;
+    console.log("Access token refreshed successfully!");
+    return accessToken;
+  } catch (err) {
+    console.error("Failed to refresh access token:", err.response?.data || err.message);
+    throw err;
+  }
+}
+
+export function getAccessToken() {
+  return accessToken;
+}
